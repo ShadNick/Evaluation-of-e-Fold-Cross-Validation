@@ -1,9 +1,5 @@
-﻿from collections import Counter
-from itertools import count
-
-import numpy
+﻿import numpy
 import scipy.stats as stats
-from pandas import value_counts
 from sklearn.metrics import f1_score
 from sklearn.model_selection import StratifiedKFold
 from sklearn.pipeline import make_pipeline
@@ -24,31 +20,29 @@ from sklearn.datasets import load_wine
 
 # Modelle
 classifications = [
-    #("AdaBoost", AdaBoostClassifier()),
-    #("Decision Tree Classifier", DecisionTreeClassifier()),
-    #("Gaussian Naive Bayes", GaussianNB()),
+    ("AdaBoost", AdaBoostClassifier()),
+    ("Decision Tree Classifier", DecisionTreeClassifier()),
+    ("Gaussian Naive Bayes", GaussianNB()),
     ("K-NN", make_pipeline(StandardScaler(), KNeighborsClassifier())),
-    #("Logistic Regression", make_pipeline(StandardScaler(), LogisticRegression(max_iter=1000)))
+    ("Logistic Regression", make_pipeline(StandardScaler(), LogisticRegression(max_iter=1000)))
 ]
 
 # Datasets for Classifications
 datasets_classifications = [
     ("Cancer", load_breast_cancer()),
-    #("Iris", load_iris()),
-    #("Digits", load_digits()),
-    #("Wine", load_wine())
+    ("Iris", load_iris()),
+    ("Digits", load_digits()),
+    ("Wine", load_wine())
 ]
 
 def calc_confidence_interval(data, confidence_level = 0.95):
 
-    data_length = len(data) 
-    mean = numpy.mean(data) # Mittelwert
-    se = numpy.std(data) / numpy.sqrt(data_length) #Standardfehler
+    se = numpy.std(data) / numpy.sqrt(len(data)) #Standarderror
 
     # Berechnungen 
-    t_value = stats.t.ppf(1 - (1 - confidence_level) / 2, df=data_length-1) # t-Wert für 95%
-    lower_limit = mean - t_value * se
-    upper_limit = mean + t_value * se
+    t_value = stats.t.ppf(1 - (1 - confidence_level) / 2, df=len(data)-1) # t-Wert for 95%
+    lower_limit = numpy.mean(data) - t_value * se
+    upper_limit = numpy.mean(data) + t_value * se
 
     return lower_limit, upper_limit
 
@@ -76,6 +70,7 @@ for model_name, model in classifications:
             all_fold_scores = {}
             all_fold_meanscore = {}
             standard_deviation_after_fold = {}
+            stopped_fold = None
 
             for fold_index, (train_index, test_index) in enumerate(k_fold.split(data,target), start = 1): # 1 to 10
                 data_train = data[train_index]
@@ -114,66 +109,61 @@ for model_name, model in classifications:
                         print(f"Run:{run}")
                         print(f"Stopped at k = {fold_index}")
                         print(f"Performance at {mean_score}")
+                        print(" ")
                         stopped_at[run] = fold_index
-
                         checker = True
                         stopped_fold = fold_index
-                     
-                if checker == False:
-                    stopped_fold = fold_index #not stopped
 
-                    
-            difference_percent = abs(all_fold_meanscore[10] - all_fold_meanscore[stopped_fold]) / mean_score * 100
-            difference.append(f"{difference_percent:.2f}%")
-                        
-
-            scores = numpy.array(list(all_fold_scores.values()))
+            if stopped_fold is not None and stopped_fold != 10: # without not stopped and e=k=10 has same values
+                difference_percent = abs(all_fold_meanscore[10] - all_fold_meanscore[stopped_fold]) / mean_score * 100
+                difference.append(difference_percent)
             
-            lower_limit, upper_limit = calc_confidence_interval(scores)
+            lower_limit, upper_limit = calc_confidence_interval(list(all_fold_scores.values()))
 
-            all_stopped_check[run] = stopped_fold
-            filtered_cancel_check = [value for value in all_stopped_check.values() if value == 10]
-            if lower_limit <= all_fold_meanscore[stopped_fold] <= upper_limit:
-                all_confidence_check[run] = True
-            else:
-                all_confidence_check[run] = False
+            if stopped_fold is not None:
+                all_stopped_check[run] = stopped_fold
 
-            filtered_all_confidence_check = [value for key, value in all_confidence_check.items() if key not in filtered_cancel_check]
-
-
-        print("------------------Interval check----------------------")     
-        print(all_stopped_check)
-        print(filtered_all_confidence_check)
-        count_true = filtered_all_confidence_check.count(True)
-        count_false = filtered_all_confidence_check.count(False)
-
-        print("Interval drinne")
-        print(len(filtered_all_confidence_check))
-        print(count_true)
-        print(count_false)
+                if lower_limit <= all_fold_meanscore[stopped_fold] <= upper_limit:
+                    all_confidence_check[run] = True
+                else:
+                    all_confidence_check[run] = False
 
 
-        print("---------Stopped Distribution---------------------------------")
         # Statistics
-        value_counts = Counter(stopped_at.values())
-        total = len(stopped_at)
-        perecentages = {k: round((v / total) * 100, 2) for k,v in value_counts.items()}
+        print("----------Interval check----------")
+        print(" ")
 
-        for value, percent in sorted(perecentages.items()):
-            print(f"Wert {value}: {percent}%")
+        print(f"Amount: {len(all_confidence_check)}")
+        print(f"In: {list(all_confidence_check.values()).count(True)}")
+        print(f"Out: {list(all_confidence_check.values()).count(False)}")
 
-        values = list(stopped_at.values())
-        average = sum(values) / len(values)
+        print(" ")
+
+        print("----------Stopped Distribution----------")
+        print(" ")
+
+        stopped_at_values = list(stopped_at.values())
+        value_counts = {}
+        for val in stopped_at_values:
+            if val in value_counts:
+                value_counts[val] += 1
+            else:
+                value_counts[val] = 1
+
+        for value in sorted(value_counts):
+            percent = round((value_counts[value] / len(stopped_at)) * 100, 2)
+            print(f"Value {value}: {percent}%")
+
+        average = sum(value for value in stopped_at_values if isinstance(value, (int, float))) / len(stopped_at)
         print(f"Durchschnitt: {round(average,2)}")
 
+        print(" ")
 
-        print("-----------Percent Differences----------------")
+        print("----------Percent Difference----------")
+        print(" ")
 
-        print(difference)
+        print(sum(difference) / len(difference))
 
-        number_percent = [float(percent.strip('%')) for percent in difference]
-        average_number = sum(number_percent) / len(number_percent)
-
-        print(average_number)
+        print(" ")
 
         input("Button to Resume")

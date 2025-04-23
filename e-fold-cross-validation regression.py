@@ -1,6 +1,9 @@
 ﻿import numpy
+import scipy.stats as stats
 from sklearn.metrics import mean_absolute_error
 from sklearn.model_selection import KFold
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 
 # Algorithm Regression
 from sklearn.tree import DecisionTreeRegressor
@@ -28,16 +31,32 @@ datasets_regression = [
     ("Housing", fetch_california_housing())
 ]
 
+def calc_confidence_interval(data, confidence_level = 0.95):
+
+    se = numpy.std(data) / numpy.sqrt(len(data)) #Standarderror
+
+    # Berechnungen 
+    t_value = stats.t.ppf(1 - (1 - confidence_level) / 2, df=len(data)-1) # t-Wert for 95%
+    lower_limit = numpy.mean(data) - t_value * se
+    upper_limit = numpy.mean(data) + t_value * se
+
+    return lower_limit, upper_limit
+
 k = 10 # Max number of splits
+
 
 for model_name, model in regressions:
     print(f"Model: {model_name}")
+    
+    all_stopped_check = {}
+    all_confidence_check = {}
 
     for dataset_name, dataset in datasets_regression:
         print(f"Dataset: {dataset_name}")
-        method = dataset
-        data = method.data
-        target = method.target
+        stopped_at = {}
+        data = dataset.data
+        target = dataset.target
+        difference = []
 
         for run in range(1,101):
             counter = 0
@@ -47,6 +66,7 @@ for model_name, model in regressions:
             all_fold_scores = {}
             all_fold_meanscore = {}
             standard_deviation_after_fold = {}
+            stopped_fold = None
 
             for fold_index, (train_index, test_index) in enumerate(k_fold.split(data,target), start = 1): # 1 to 10
                 data_train = data[train_index]
@@ -59,14 +79,15 @@ for model_name, model in regressions:
 
                 all_fold_scores[fold_index] = model_score # Se = performance of model on fe
 
-                mean_scores = numpy.mean(list(all_fold_scores.values())) # Me
-                all_fold_meanscore[fold_index] = mean_scores 
+                mean_score = numpy.mean(list(all_fold_scores.values())) # Me
+                all_fold_meanscore[fold_index] = mean_score 
 
                 if fold_index > 1:
                     standard_deviation = numpy.std(list(all_fold_scores.values())) #standard deviation for samples
                     standard_deviation_after_fold[fold_index] = standard_deviation
 
                 if fold_index > 2:
+
                     std = standard_deviation #deviation right now
                     last_standard_deviation = standard_deviation_after_fold[fold_index - 1] #previous
 
@@ -81,19 +102,67 @@ for model_name, model in regressions:
 
                 if counter == 2:
                     if checker == False:
+                        print(f"Run:{run}")
                         print(f"Stopped at k = {fold_index}")
-                        print(f"Performance at {mean_scores}")
-
+                        print(f"Performance at {mean_score}")
+                        print(" ")
+                        stopped_at[run] = fold_index
                         checker = True
+                        stopped_fold = fold_index
+
+            if stopped_fold is not None and stopped_fold != 10: # without not stopped and e=k=10 has same values
+                difference_percent = abs(all_fold_meanscore[10] - all_fold_meanscore[stopped_fold]) / mean_score * 100
+                difference.append(difference_percent)
+            
+            lower_limit, upper_limit = calc_confidence_interval(list(all_fold_scores.values()))
+
+            if stopped_fold is not None:
+                all_stopped_check[run] = stopped_fold
+
+                if lower_limit <= all_fold_meanscore[stopped_fold] <= upper_limit:
+                    all_confidence_check[run] = True
+                else:
+                    all_confidence_check[run] = False
 
 
-            print(f"Run:{run}")
-            print(f"Werte pro Durchlauf:")
-            print(all_fold_scores)
-            print(f"Durchschnittswerte pro Durchlauf:")
-            print(all_fold_meanscore)
-            print("Standardabweichung der Scores nach jedem Fold")
-            print(standard_deviation_after_fold)
+        # Statistics
+        print("----------Interval check----------")
+        print(" ")
+
+        print(f"Amount: {len(all_confidence_check)}")
+        print(f"In: {list(all_confidence_check.values()).count(True)}")
+        print(f"Out: {list(all_confidence_check.values()).count(False)}")
+
+        print(" ")
+
+        print("----------Stopped Distribution----------")
+        print(" ")
+
+        stopped_at_values = list(stopped_at.values())
+        value_counts = {}
+        for val in stopped_at_values:
+            if val in value_counts:
+                value_counts[val] += 1
+            else:
+                value_counts[val] = 1
+
+        for value in sorted(value_counts):
+            percent = round((value_counts[value] / len(stopped_at)) * 100, 2)
+            print(f"Value {value}: {percent}%")
+
+        average = sum(value for value in stopped_at_values if isinstance(value, (int, float))) / len(stopped_at)
+        print(f"Durchschnitt: {round(average,2)}")
+
+        print(" ")
+
+        print("----------Percent Difference----------")
+        print(" ")
+
+        print(sum(difference) / len(difference))
+
+        print(" ")
+
+        input("Button to Resume")
 
 
 

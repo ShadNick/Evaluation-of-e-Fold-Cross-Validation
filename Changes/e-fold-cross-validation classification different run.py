@@ -1,5 +1,7 @@
 ﻿import numpy
 import scipy.stats as stats
+import matplotlib.pyplot as plt
+
 from sklearn.metrics import f1_score
 from sklearn.model_selection import StratifiedKFold
 from sklearn.pipeline import make_pipeline
@@ -60,9 +62,9 @@ for model_name, model in classifications:
         stopped_at = {}
         data = dataset.data
         target = dataset.target
-        difference = []
+        difference = {}
 
-        for run in range(1,101):
+        for run in range(1,251):
             counter = 0
             checker = False
             k_fold = StratifiedKFold(n_splits=k, shuffle = True, random_state=run) # Splitting into k=10
@@ -116,7 +118,7 @@ for model_name, model in classifications:
 
             if stopped_fold is not None and stopped_fold != 10: # without not stopped and e=k=10 has same values
                 difference_percent = abs(all_fold_meanscore[10] - all_fold_meanscore[stopped_fold]) / mean_score * 100
-                difference.append(difference_percent)
+                difference[run] = difference_percent
             
             lower_limit, upper_limit = calc_confidence_interval(list(all_fold_scores.values()))
 
@@ -162,8 +164,54 @@ for model_name, model in classifications:
         print("----------Percent Difference----------")
         print(" ")
 
-        print(sum(difference) / len(difference))
+        print(sum(difference.values()) / len(difference))
 
         print(" ")
 
-        input("Button to Resume")
+        # Plotting Interval check
+        figure, axes = plt.subplots(figsize=(6, 5))
+        
+        axes.set_title("Amount in Interval:", fontsize=15)
+        axes.set_ylabel("Amount")
+
+        in_count = list(all_confidence_check.values()).count(True)
+        out_count = list(all_confidence_check.values()).count(False)
+
+        axes.bar(['In', 'Out'], [in_count, out_count], color=['green','red'])
+
+        for i, count in enumerate([in_count, out_count]):
+            axes.text(i, count, str(count), ha='center', va='bottom', fontsize=12)
+
+        plt.tight_layout()
+        plt.show()
+        plt.close()
+
+        # Plotting cancel distribution
+        figure, axes = plt.subplots(figsize=(10, 6))
+
+        axes.set_title("Early cancellation on fold:", fontsize=15)
+        axes.set_xlabel("Runs")
+        axes.set_ylabel("Folds")
+
+        folds_value = [stopped_at[run] for run in stopped_at.keys()]
+
+        axes.bar(stopped_at.keys(), folds_value, color='blue')
+        axes.axhline(numpy.mean(folds_value), color='orange', linewidth=2)
+
+        plt.tight_layout()
+        plt.show()
+        plt.close()
+
+        # Plotting difference procents to k=10
+        figure, axes = plt.subplots(figsize=(10, 6))
+
+        axes.set_title("Procent difference to compared k=10", fontsize=15)
+        axes.set_xlabel("Runs")
+        axes.set_ylabel("Value")
+
+        axes.bar(difference.keys(), difference.values(), color='silver')
+        axes.axhline(sum(difference.values()) / len(difference), color='orange', linewidth=2)
+
+        plt.tight_layout()
+        plt.show()
+        plt.close()

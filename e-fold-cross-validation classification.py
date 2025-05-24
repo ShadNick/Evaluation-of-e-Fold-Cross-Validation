@@ -25,8 +25,8 @@ classifications = [
     ("AdaBoost", AdaBoostClassifier()),
     ("Decision Tree Classifier", DecisionTreeClassifier()),
     ("Gaussian Naive Bayes", GaussianNB()),
-    ("K-NN", make_pipeline(StandardScaler(), KNeighborsClassifier())),
-    ("Logistic Regression", make_pipeline(StandardScaler(), LogisticRegression(max_iter=1000)))
+    ("K-NN", KNeighborsClassifier()),
+    ("Logistic Regression", LogisticRegression())
 ]
 
 # Datasets for Classifications

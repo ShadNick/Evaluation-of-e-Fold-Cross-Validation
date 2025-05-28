@@ -1,6 +1,8 @@
 ﻿import numpy
 import scipy.stats as stats
 import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
 
 from sklearn.metrics import mean_absolute_error
 from sklearn.model_selection import KFold
@@ -46,6 +48,7 @@ def calc_confidence_interval(data, confidence_level = 0.95):
 
 k = 10 # Max number of splits
 
+diff_result = []
 
 for model_name, model in regressions:
     print(f"Model: {model_name}")
@@ -115,6 +118,12 @@ for model_name, model in regressions:
             if stopped_fold is not None and stopped_fold != 10: # without not stopped and e=k=10 has same values
                 difference_percent = abs(all_fold_meanscore[10] - all_fold_meanscore[stopped_fold]) / mean_score * 100
                 difference[run] = difference_percent
+
+                diff_result.append({
+                    "Dataset": dataset_name,
+                    "Algorithm": model_name,
+                    "Difference": difference_percent
+                    })
             
             lower_limit, upper_limit = calc_confidence_interval(list(all_fold_scores.values()))
 
@@ -211,6 +220,20 @@ for model_name, model in regressions:
         plt.tight_layout()
         plt.show()
         plt.close()
+
+        
+        #-------------------------------------------------------------------
+
+        plt.figure(figsize=(12, 6))
+        sns.boxplot(x="Dataset", y="Difference", hue="Algorithm", data=pd.DataFrame(diff_result), width = 0.5)
+
+        plt.ylabel("Percentage Difference in %")
+        plt.title("Performance Difference to 10-fold Cross-Validation")
+        plt.xticks(rotation=15)
+        plt.legend(title="Algorithms")
+        plt.tight_layout()
+        plt.show()
+
 
 
 
